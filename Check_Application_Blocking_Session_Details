@@ -1,0 +1,197 @@
+1) Immediate triage (identify the blocker)
+Run these on the SQL Server hosting the FIM/MIM DB (on the primary if AG/FCI).
+1.1 Find blocking & waits (server-wide view)
+;WITH r AS (
+    SELECT 
+        r.session_id, r.blocking_session_id, r.wait_type, r.wait_time,
+        r.command, r.status, r.cpu_time, r.total_elapsed_time,
+        DB_NAME(r.database_id) AS db_name,
+        s.host_name, s.program_name, s.login_name, s.open_transaction_count,
+        t.text AS sql_text
+    FROM sys.dm_exec_requests r
+    JOIN sys.dm_exec_sessions s ON s.session_id = r.session_id
+    OUTER APPLY sys.dm_exec_sql_text(r.sql_handle) t
+)
+SELECT *
+FROM r
+ORDER BY CASE WHEN blocking_session_id = 0 THEN session_id ELSE blocking_session_id END, session_id;
+Look for:
+•	program_name like Microsoft.ResourceManagement.Service, w3wp.exe, or any custom/batch touching the FIM DB.
+•	Sessions with wait_type starting with LCK_ or WAITFOR and a non-zero blocking_session_id.
+1.2 Inspect application locks in the FIM/MIM DB
+-- Replace with your database name if different
+USE [FIMService];
+GO
+SELECT 
+    tl.request_session_id AS spid,
+    tl.resource_type,
+    tl.resource_subtype,
+    tl.request_mode,
+    tl.request_status,
+    tl.resource_description,           -- <- app lock name; often identifies the resource row/key
+    s.program_name,
+    s.host_name,
+    s.login_name,
+    s.open_transaction_count,
+    r.status AS request_status,
+    r.command,
+    t.text AS running_sql
+FROM sys.dm_tran_locks tl
+JOIN sys.dm_exec_sessions s ON s.session_id = tl.request_session_id
+LEFT JOIN sys.dm_exec_requests r ON r.session_id = tl.request_session_id
+OUTER APPLY sys.dm_exec_sql_text(r.sql_handle) t
+WHERE DB_NAME(tl.resource_database_id) = DB_NAME()
+  AND tl.resource_type = 'APPLICATION'
+ORDER BY tl.request_status DESC, tl.request_mode DESC;
+What you want: Identify the SPID holding an APPLICATION lock in GRANT status and the waiting SPIDs in WAIT status on the same resource_description.
+1.3 Oldest/long-running transactions (common cause of “stuck” app locks)
+SELECT 
+    at.transaction_id,
+    at.transaction_begin_time,
+    DATEDIFF(MINUTE, at.transaction_begin_time, SYSDATETIME()) AS tran_age_min,
+    s.session_id, s.login_name, s.host_name, s.program_name, s.open_transaction_count,
+    r.status, r.command, DB_NAME(r.database_id) AS db_name,
+    t.text AS sql_text
+FROM sys.dm_tran_active_transactions at
+JOIN sys.dm_tran_session_transactions st ON st.transaction_id = at.transaction_id
+JOIN sys.dm_exec_sessions s ON s.session_id = st.session_id
+LEFT JOIN sys.dm_exec_requests r ON r.session_id = s.session_id
+OUTER APPLY sys.dm_exec_sql_text(r.sql_handle) t
+ORDER BY at.transaction_begin_time;
+If you see a long-running transaction from the FIM Service or IIS worker process, that’s usually the blocker.
+________________________________________
+2) Safely clear the lock (choose 1)
+Do not edit vendor stored procedures. Resolve the blocking session or the stuck transaction.
+Option A — Graceful application side recycle (preferred)
+If the blocker SPID belongs to the FIM Service/IIS:
+1.	Stop FIM Service (service name varies: Forefront Identity Manager Service / Microsoft Identity Manager Service).
+2.	If the Portal is in play, iisreset /stop on the portal server.
+3.	Wait ~30–60 seconds for SQL to roll back the open transaction and release app locks.
+4.	Verify the SPID disappeared and locks cleared (re-run 1.2/1.3).
+5.	Start FIM Service (and IIS if stopped).
+This avoids killing a session mid-operation and lets SQL roll back cleanly.
+Option B — Kill the specific blocking SPID (DBA intervention)
+If you cannot recycle services and have identified a clear blocker:
+-- Replace <spid> with the blocking_session_id you found
+KILL <spid> WITH STATUSONLY;  -- preview rollback expectation
+KILL <spid>;                  -- perform the kill if acceptable
+Then monitor rollback:
+-- Shows rollback progress
+SELECT percent_complete, estimated_completion_time, command, status
+FROM sys.dm_exec_requests
+WHERE session_id = <spid>;  -- will show until the rollback completes
+Option C — Non-FIM blocker
+If another process (e.g., ETL, index rebuild, ad-hoc admin script) is holding locks in the FIM DB, pause/stop that workload or kill its SPID as per your change control.
+________________________________________
+3) Verify recovery
+After clearing the lock:
+1.	Confirm no app locks remain (rerun section 1.2; you should see no WAIT on the same resource_description).
+2.	Re-submit the failing operation from the FIM/MIM front end or retry the API call.
+3.	Check the Application & FIM Service event logs for a clean success (no re-raised 50000).
+________________________________________
+4) Prevent recurrences (hardening)
+4.1 Add blocked process detection (server-wide)
+Choose a sensible threshold; 20–30 seconds works well for this workload.
+EXEC sp_configure 'show advanced options', 1;
+RECONFIGURE;
+EXEC sp_configure 'blocked process threshold (s)', 30;
+RECONFIGURE;
+GO
+
+-- Extended Events session capturing blocked reports
+CREATE EVENT SESSION [mim_blocking] ON SERVER
+ADD EVENT sqlserver.blocked_process_report(
+    ACTION(sqlserver.client_app_name, sqlserver.client_hostname, sqlserver.username)
+)
+ADD TARGET package0.ring_buffer
+WITH (MAX_MEMORY=50 MB, EVENT_RETENTION_MODE=ALLOW_MULTIPLE_EVENT_LOSS, 
+      MAX_DISPATCH_LATENCY=30 SECONDS, MAX_EVENT_SIZE=4 MB, STARTUP_STATE=ON);
+GO
+ALTER EVENT SESSION [mim_blocking] ON SERVER STATE = START;
+You can query the ring buffer when incidents occur, or redirect to an XE file target for persistence.
+4.2 Lightweight XE for application locks (database targeted)
+CREATE EVENT SESSION [mim_applocks] ON SERVER
+ADD EVENT sqlserver.lock_acquired(
+    WHERE (database_id = DB_ID('FIMService') AND resource_type = 14)  -- 14 = APPLICATION
+),
+ADD EVENT sqlserver.lock_released(
+    WHERE (database_id = DB_ID('FIMService') AND resource_type = 14)
+)
+ADD TARGET package0.ring_buffer
+WITH (MAX_MEMORY=25 MB, STARTUP_STATE=ON);
+GO
+ALTER EVENT SESSION [mim_applocks] ON SERVER STATE = START;
+Now you can see which sessions request/hold/release the APPLICATION locks and for how long.
+
+4.3 Schedule & isolate FIM jobs
+•	Avoid overlap between heavy portal operations and synchronization runs/MA imports/exports that mutate the same objects.
+•	Stagger any custom jobs (PowerShell/SSIS/ADF) touching the FIM DB.
+•	Ensure your automation uses short transactions and commits frequently.
+4.4 Database maintenance (weekly)
+•	Rebuild/reorganize indexes and update stats on the FIM DB (vendor-safe). Keep transactions per object short to avoid holding wide locks.
+•	Example (general template—adapt to your maintenance solution, Ola Hallengren, etc.)
+Ensure MAXDOP and log growth are set sanely to avoid long blocking windows.
+4.5 Operational guardrails
+•	Monitor for sleeping sessions with open transactions:
+SELECT session_id, host_name, program_name, login_name, open_transaction_count
+FROM sys.dm_exec_sessions
+WHERE is_user_process = 1 AND open_transaction_count > 0;
+•	Alert if any single transaction in FIM DB exceeds, say, 10 minutes (Agent job using query from 1.3).
+•	Document a runbook: “If UpdateResource lock occurs, run 1.2/1.3 → identify blocker → Option A preferred.”
+________________________________________
+5) Quick one-shot triage script (paste-and-run)
+/* Set this to your database */
+DECLARE @db sysname = N'FIMService';
+
+;WITH req AS (
+  SELECT 
+    r.session_id, r.blocking_session_id, r.wait_type, r.wait_time, r.command, r.status,
+    DB_NAME(r.database_id) AS db_name, s.host_name, s.program_name, s.login_name,
+    s.open_transaction_count, t.text AS sql_text
+  FROM sys.dm_exec_requests r
+  JOIN sys.dm_exec_sessions s ON s.session_id = r.session_id
+  OUTER APPLY sys.dm_exec_sql_text(r.sql_handle) t
+),
+applocks AS (
+  SELECT 
+    tl.request_session_id AS spid,
+    tl.request_status, tl.request_mode,
+    tl.resource_description,
+    DB_NAME(tl.resource_database_id) AS db_name
+  FROM sys.dm_tran_locks tl
+  WHERE tl.resource_type = 'APPLICATION'
+)
+SELECT 
+  GETDATE() AS collected_at,
+  r.*,
+  al.request_status AS applock_status,
+  al.request_mode    AS applock_mode,
+  al.resource_description
+FROM req r
+LEFT JOIN applocks al 
+  ON al.spid = r.session_id AND al.db_name = r.db_name
+WHERE r.db_name = @db
+ORDER BY CASE WHEN r.blocking_session_id = 0 THEN r.session_id ELSE r.blocking_session_id END, r.session_id;
+
+-- Oldest transactions in the target DB
+SELECT TOP (20)
+    at.transaction_begin_time, 
+    DATEDIFF(MINUTE, at.transaction_begin_time, SYSDATETIME()) AS tran_age_min,
+    s.session_id, s.program_name, s.host_name, s.login_name,
+    DB_NAME(dt.database_id) AS db_name, r.status, r.command,
+    t.text AS sql_text
+FROM sys.dm_tran_active_transactions at
+JOIN sys.dm_tran_session_transactions st ON st.transaction_id = at.transaction_id
+JOIN sys.dm_tran_database_transactions dt ON dt.transaction_id = at.transaction_id
+JOIN sys.dm_exec_sessions s ON s.session_id = st.session_id
+LEFT JOIN sys.dm_exec_requests r ON r.session_id = s.session_id
+OUTER APPLY sys.dm_exec_sql_text(r.sql_handle) t
+WHERE dt.database_id = DB_ID(@db)
+ORDER BY at.transaction_begin_time;
+Use the results to decide Option A (recycle service/IIS) or Option B (kill the clear blocker).
+________________________________________
+Notes & cautions
+•	The error text is by design: the procedure times out acquiring an app lock and re-raises as error 50000. It’s not a schema corruption or permissions issue.
+•	Snapshot isolation: Do not flip isolation levels without vendor guidance; app locks are independent of row versioning and changing isolation won’t fix this symptom.
+•	If you are in Always On, make sure all troubleshooting (and service restart decisions) target the current primary hosting the writable FIM DB.
+
