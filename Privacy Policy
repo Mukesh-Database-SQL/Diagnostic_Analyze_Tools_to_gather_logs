@@ -1,0 +1,440 @@
+Privacy Policy
+----------------------------
+
+1. Introduction
+
+“The DBA Troubleshooting API helps database administrators diagnose and solve database issues by submitting error descriptions or questions. We respect user privacy and handle data responsibly.”
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+2.Data Collection
+
+Information We Collect ------------
+
+When you use the DBA Troubleshooting API, we collect only the minimum information necessary to provide you with troubleshooting solutions and to improve the quality of our service. Specifically, we may collect the following:
+
+Issue Descriptions ------------
+
+Free-text descriptions of the problem you are experiencing (e.g., error messages, query performance issues, or configuration challenges).
+
+This is used solely to understand your problem and generate relevant troubleshooting steps.
+
+Database Type -----------------
+
+The type of database you are working with (e.g., MySQL, PostgreSQL, Oracle, SQL Server, MongoDB).
+
+This helps tailor the response to the correct database system.
+
+Experience Level ---------------
+
+The level of expertise you identify as (e.g., beginner, intermediate, expert).
+
+This is used to customize the explanation style, making responses easier to understand for different skill levels.
+
+Language Preference ----------------
+
+The language you request responses in (e.g., English, Spanish, French, Chinese).
+
+This ensures that troubleshooting content is returned in your preferred language.
+
+Community Contributions (Optional) ----------------
+
+If you choose to submit a solution using the /contribute endpoint, we collect:
+
+The issue and your proposed solution.
+
+The database type and target experience level.
+
+An author name or identifier (only if you voluntarily provide it).
+
+Contributions are used to build the community knowledge base and may be shared with other users.
+
+------ Information We Do Not Collect -------
+
+We are committed to protecting your privacy. We do not collect or require:
+
+Usernames, passwords, or authentication credentials for your database systems.
+
+Sensitive connection strings (e.g., database hostnames, ports, user accounts, or passwords).
+
+Personally identifiable information (PII) such as your full name, address, phone number, government ID, or payment details.
+
+Application or business-sensitive data not directly related to troubleshooting (e.g., customer records, proprietary business logic, or confidential datasets).
+
+ ------------  User Responsibility  -----------------------
+
+Users are expected to ensure that the issue descriptions they submit do not include sensitive personal or company data.
+For example:
+
+✅ Correct: “I am getting error ORA-12154 when connecting to Oracle DB.”
+
+❌ Avoid: “I am connecting with username admin and password mySecret123 to server 192.168.1.50.”
+
+------------- Why We Collect This Data -----------------------------
+
+To analyze and troubleshoot the reported issue.
+
+To tailor solutions to the correct database type and user experience level.
+
+To deliver content in your preferred language.
+
+To grow and maintain a community-driven knowledge base (if you choose to contribute solutions).
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+3. Data Usage
+
+We use the data collected from users only for the purposes of delivering troubleshooting solutions, improving the quality of our service, and building a community-driven knowledge base. We do not sell, trade, or share your data with third parties for advertising or marketing purposes.
+
+1. Troubleshooting Responses
+
+Issue Descriptions, Database Type, Experience Level, and Language Preference are used solely to:
+
+Analyze the technical issue you are experiencing.
+
+Generate a relevant and accurate troubleshooting solution.
+
+Adjust the depth and complexity of the explanation based on your selected skill level.
+
+Provide responses in the language you requested.
+
+Example: If you submit “Slow query performance on PostgreSQL” with experience level: beginner and language: Spanish, the system uses that information to return a step-by-step solution in Spanish, written for beginners.
+
+2. Improving Solution Quality
+
+We may review anonymized issue descriptions and solutions to:
+
+Enhance the accuracy of troubleshooting recommendations.
+
+Identify recurring problems faced by DBAs worldwide.
+
+Expand the knowledge base with new solutions and best practices.
+
+Data used for improvement is anonymized and does not include personal identifiers.
+
+3. Community Contributions
+
+When users submit solutions via the /contribute endpoint, the information provided is stored in our community knowledge base.
+
+Stored contribution data may include:
+
+The database type, issue, and proposed solution.
+
+The intended experience level of the solution.
+
+Author details (only if voluntarily provided).
+
+Language of the submission.
+
+These contributions may be published and shared with other DBAs to build a collaborative resource.
+
+Contributions may be subject to moderation before publication to ensure accuracy and quality.
+
+4. What We Do Not Use Data For
+
+We never use submitted data for:
+
+Advertising or marketing purposes.
+
+Tracking users across websites or services.
+
+Selling user-submitted information to third parties.
+
+5. User Control
+
+Users may choose not to contribute to the community knowledge base by avoiding the /contribute endpoint.
+
+Users may request the removal of their previously submitted contributions by contacting our support team.
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+4. Data Sharing
+
+We take your privacy seriously and limit how and when data is shared. The information you provide is used primarily to generate troubleshooting solutions and support the community knowledge base.
+
+1. No Third-Party Sales or Marketing
+
+We do not sell, rent, or trade your data to any third party for advertising or marketing purposes.
+
+Your information is not used for commercial tracking or profiling.
+
+2. Sharing Within the Community (Optional)
+
+If you contribute a solution via the /contribute endpoint, your submission (issue, solution, database type, experience level, and language) may be shared with the DBA community.
+
+All shared solutions are published anonymously by default, unless you voluntarily provide an author name or identifier.
+
+This ensures that your personal identity is not linked to the shared solution unless you explicitly choose to do so.
+
+3. Anonymized Sharing for Knowledge Improvement
+
+We may aggregate and anonymize issue descriptions and solutions to identify patterns, recurring problems, or best practices.
+
+These anonymized insights may be used to:
+
+Improve troubleshooting accuracy.
+
+Create guides, FAQs, and knowledge resources for DBAs.
+
+Share general insights with the community (without linking data to individual users).
+
+4. Sharing with Service Providers (Minimal and Controlled)
+
+In limited cases, we may use trusted service providers (e.g., hosting, database, AI processing providers) to deliver the service.
+
+These providers only process data on our behalf and under strict contractual obligations to maintain confidentiality and security.
+
+Service providers are not permitted to use your data for their own purposes.
+
+5. Legal Compliance
+
+We may disclose limited information if required to do so by law, regulation, or valid legal process (e.g., government requests).
+
+Such disclosures are rare and only occur when legally necessary.
+
+6. User Control Over Sharing
+
+Users who do not wish to share their solutions with the community should avoid using the /contribute endpoint.
+
+Users may request the removal of their previously shared contributions by contacting our support team.
+
+👉 This version makes Data Sharing completely clear:
+
+🔒 No sales.
+
+🌍 Anonymous sharing for community benefit.
+
+⚖️ Legal compliance only when required.
+
+🙌 Full user control over contributions.
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+5. Data Storage & Retention
+
+We are committed to storing data responsibly and only for as long as it is needed to provide value to users and the DBA community.
+
+1. Temporary Data Processing (AI-Powered Responses)
+
+When you submit an issue for troubleshooting, your input (issue description, database type, experience level, and language preference) may be temporarily processed by AI systems to generate a response.
+
+This data is used in real-time only and is not permanently stored after the response is generated.
+
+Temporary processing ensures we can provide accurate, context-specific troubleshooting solutions without retaining sensitive details.
+
+2. Storage of Community Contributions
+
+If you use the /contribute endpoint, your submitted solution (including issue description, solution text, database type, experience level, and language) may be stored in our database.
+
+Contributions are stored so they can:
+
+Be reviewed and approved by administrators.
+
+Be published and shared as part of the community knowledge base.
+
+Remain accessible to other DBAs for ongoing learning and problem-solving.
+
+Contributions remain stored until:
+
+You (the contributor) request deletion, or
+
+An administrator removes the content (e.g., if outdated, inaccurate, or inappropriate).
+
+3. Data Retention Periods
+
+Troubleshooting Submissions: Not permanently stored. They exist only during active processing of your request.
+
+Community Contributions: Stored indefinitely to support long-term knowledge sharing unless deleted as outlined above.
+
+Anonymized Data: Aggregated, anonymized insights may be retained for service improvement without a set expiration, as they do not contain personally identifiable information.
+
+4. User Control Over Retention
+
+Users may contact us at any time to request removal of their contributed solutions from the knowledge base.
+
+We will honor deletion requests promptly unless legal or regulatory obligations require retention.
+
+5. Data Security in Storage
+
+All stored contributions are protected with industry-standard security measures (e.g., encryption, access control).
+
+Access to stored contributions is limited to authorized administrators and service providers under confidentiality obligations.
+
+👉 This version makes it clear and user-friendly:
+
+⚡ Troubleshooting data = temporary only.
+
+📚 Contributions = stored until removed.
+
+🛡️ Anonymized data = safe and retained for long-term improvements.
+
+🙌 Users can always request deletion.
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+6. User Rights
+
+We respect the rights of our users and provide clear options to manage, control, and request deletion of their data.
+
+1. Right to Access
+
+Users may request information about the data we have collected or stored related to their contributions.
+
+This includes details such as the content of their submitted solutions, the date of submission, and whether their contribution is published in the community knowledge base.
+
+2. Right to Deletion (Right to Be Forgotten)
+
+Users have the right to request deletion of their previously submitted contributions at any time.
+
+Deletion requests can be made by contacting our support team. Once verified, the contribution will be removed from our systems and, if applicable, unpublished from the community knowledge base.
+
+Troubleshooting submissions that are processed temporarily (for AI responses) are not permanently stored and therefore do not require deletion.
+
+3. Right to Withdraw Consent
+
+If a user has voluntarily contributed solutions, they may withdraw their consent to share those solutions with the community.
+
+Upon withdrawal, their contributions will be removed from public access and deleted from storage, unless required to be retained for legal reasons.
+
+4. Right to Restrict Processing
+
+Users may request that their data (specifically contributions) not be processed for publication or community sharing.
+
+In such cases, their data will remain private and inaccessible to other users until the restriction is lifted or the data is deleted.
+
+5. Right to Portability (Optional)
+
+Upon request, users may receive a copy of their submitted contributions in a structured, commonly used format (e.g., JSON or text file).
+
+This allows users to keep a personal record of their troubleshooting solutions or share them independently.
+
+6. Right to Stop Using the Service
+
+Users can stop using the service at any time without prior notice.
+
+Since most troubleshooting submissions are processed in real time and not stored, ceasing use immediately ends further data processing.
+
+Contributions already submitted to the knowledge base may remain unless the user specifically requests deletion.
+
+7. Right to Non-Discrimination
+
+Users who exercise their privacy rights (such as requesting deletion of contributions) will not be discriminated against or denied access to the service.
+
+8. How to Exercise These Rights
+
+Users can exercise any of the above rights by contacting us via email at support@dbatroubleshooter.com
+ (replace with your real contact).
+
+Requests will be processed promptly, typically within 30 days, in accordance with applicable data protection regulations.
+
+👉 This makes User Rights very clear:
+
+🙌 Access, deletion, consent withdrawal.
+
+🛑 Stop using anytime.
+
+📥 Option to export their contributions.
+
+⚖️ Protection from discrimination.
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+7. Security
+
+We take the security of user data seriously and implement both technical and organizational measures to protect against unauthorized access, misuse, or disclosure.
+
+1. API Security
+
+All access to the DBA Troubleshooting API is protected using API keys.
+
+Only users with a valid API key can submit requests, ensuring that unauthorized parties cannot access the service.
+
+API keys are unique to each user or organization and must be kept confidential.
+
+2. Data Transmission
+
+Data exchanged between clients and our servers is encrypted using HTTPS (TLS/SSL) to prevent interception during transmission.
+
+This ensures that issue descriptions, database types, language preferences, and contributions cannot be accessed by unauthorized parties while in transit.
+
+3. Data Storage Protection
+
+Community contributions stored in our systems are protected with:
+
+Encryption at rest to safeguard against unauthorized access.
+
+Access controls that limit stored data to authorized administrators only.
+
+Logs and backups are maintained securely and regularly reviewed.
+
+4. Internal Security Practices
+
+Access to infrastructure is restricted to authorized personnel only.
+
+Service providers that may assist with hosting or processing must comply with strict confidentiality and data protection agreements.
+
+Regular monitoring and audits are performed to detect and mitigate security threats.
+
+5. User Responsibilities
+
+While we take steps to secure the API and stored contributions, users also play a critical role in maintaining security:
+
+Users must keep their API keys secure and not share them with unauthorized parties.
+
+Users should not submit sensitive personal data, such as:
+
+Usernames or passwords.
+
+Database connection strings (including hostnames, ports, credentials).
+
+Personally identifiable information (PII) such as names, emails, phone numbers, or financial details.
+
+Submissions should contain only the necessary technical details required to troubleshoot an issue.
+
+6. Incident Response
+
+In the unlikely event of a data breach or security incident, we will:
+
+Investigate promptly.
+
+Take necessary corrective actions.
+
+Notify affected users if required by law.
+
+👉 This makes the Security section clear and balanced:
+
+🔑 Strong protections (API keys, HTTPS, encryption).
+
+🛡️ Controlled storage & admin access.
+
+🙌 Clear user responsibility (no sensitive data, protect API key).
+
+🚨 Incident response plan in place.
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+8. Contact Information
+
+We encourage users to contact us with any questions, concerns, or requests regarding this Privacy Policy or the handling of their data.
+
+1. Primary Contact Method
+
+Users can reach us by email at:
+mukesh.chaurasia412@gmail.com
+
+This email can be used for:
+
+Privacy-related inquiries.
+
+Requests to access or delete user contributions.
+
+Questions about data usage, sharing, and retention.
+
+Reporting a security concern or suspected vulnerability.
+
+2. Response Times
+
+We aim to respond to all inquiries within 5–7 business days.
+
+Requests related to data access, correction, or deletion will typically be processed within 30 days, in accordance with applicable data protection regulations.
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+For privacy-related concerns, please contact us at support@dbatroubleshooter.com
