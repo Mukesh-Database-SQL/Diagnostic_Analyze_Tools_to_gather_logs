@@ -1,0 +1,126 @@
+openapi: 3.1.0
+info:
+  title: DBA Troubleshooting API
+  description: |
+    An API designed for database administrators worldwide to troubleshoot real-time project issues,
+    receive easy-to-understand solutions, and access guidance in their preferred language.
+  version: 0.1.0
+servers:
+  - url: https://api.dbatroubleshooter.com/v1
+    description: Main production server
+paths:
+  /troubleshoot:
+    post:
+      operationId: troubleshootIssue
+      summary: Submit a database issue and get troubleshooting guidance.
+      description: |
+        Accepts a problem description from the DBA and returns a structured solution, 
+        including steps, explanations, and examples in the user’s requested language and experience level.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                databaseType:
+                  type: string
+                  description: Type of database (e.g., MySQL, PostgreSQL, Oracle, SQL Server, MongoDB).
+                issueDescription:
+                  type: string
+                  description: Detailed description of the issue or error message.
+                experienceLevel:
+                  type: string
+                  enum: [beginner, intermediate, expert]
+                  description: The DBA's level of expertise to tailor the explanation.
+                language:
+                  type: string
+                  description: Preferred language code (ISO 639-1, e.g., "en", "es", "fr", "zh").
+              required:
+                - databaseType
+                - issueDescription
+      responses:
+        '200':
+          description: Structured troubleshooting solution
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  solutionSummary:
+                    type: string
+                    description: A short summary of the recommended fix.
+                  detailedSteps:
+                    type: array
+                    items:
+                      type: string
+                    description: Step-by-step resolution guide.
+                  bestPractices:
+                    type: array
+                    items:
+                      type: string
+                    description: Preventive measures or best practices.
+                  examples:
+                    type: array
+                    items:
+                      type: string
+                    description: SQL queries, config snippets, or commands to try.
+                  translatedLanguage:
+                    type: string
+                    description: The language used in the response.
+
+  /common-issues/{databaseType}:
+    get:
+      operationId: getCommonIssues
+      summary: Retrieve common issues and solutions for a specific database.
+      parameters:
+        - name: databaseType
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Database type (e.g., MySQL, PostgreSQL, Oracle, SQL Server, MongoDB).
+        - name: language
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Preferred response language (ISO 639-1).
+      responses:
+        '200':
+          description: List of common issues and solutions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    issue:
+                      type: string
+                    solution:
+                      type: string
+                    experienceLevel:
+                      type: string
+                      enum: [beginner, intermediate, expert]
+
+  /languages:
+    get:
+      operationId: getSupportedLanguages
+      summary: Get list of supported languages for troubleshooting responses.
+      responses:
+        '200':
+          description: Array of supported language codes and names
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    code:
+                      type: string
+                      description: ISO 639-1 language code.
+                    name:
+                      type: string
+                      description: Full language name.
