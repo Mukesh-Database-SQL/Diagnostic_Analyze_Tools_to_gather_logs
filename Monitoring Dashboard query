@@ -1,0 +1,90 @@
+Monitoring Dashboard query that pulls together data from the XEvent sessions we built (XE_Deadlocks, XE_Errors, XE_Blocking, XE_LongRunningQueries).
+
+This will give you a single view across:
+
+🔴 Deadlocks (who was involved, victim details)
+
+⚠️ Errors (severity, state, message)
+
+⏳ Blocking/Locks (sessions holding/releasing locks)
+
+🐢 Long-running queries (>5 sec by default)
+
+📊 Monitoring Dashboard Query
+/* ==========================================================
+   MONITORING DASHBOARD – Extended Events
+   (Deadlocks | Errors | Blocking | Long-Running Queries)
+   ========================================================== */
+WITH Deadlocks AS
+(
+    SELECT 
+        'Deadlock' AS [EventType],
+        event_data.value('(event/@timestamp)[1]', 'datetime2') AS EventTime,
+        event_data.value('(event/data[@name="xml_report"]/value/deadlock/victim-list/victimProcess/@id)[1]', 'varchar(100)') AS VictimProcess,
+        CAST(event_data AS XML) AS EventDetails
+    FROM sys.fn_xe_file_target_read_file('C:\XE\Deadlocks*.xel', NULL, NULL, NULL)
+    CROSS APPLY (SELECT CAST(event_data AS XML)) AS ed(event_data)
+),
+Errors AS
+(
+    SELECT
+        'Error' AS [EventType],
+        event_data.value('(event/@timestamp)[1]', 'datetime2') AS EventTime,
+        event_data.value('(event/data[@name="error_number"]/value)[1]', 'int') AS ErrorNumber,
+        event_data.value('(event/data[@name="severity"]/value)[1]', 'int') AS Severity,
+        event_data.value('(event/data[@name="message"]/value)[1]', 'nvarchar(max)') AS MessageText,
+        event_data.value('(event/action[@name="sql_text"]/value)[1]', 'nvarchar(max)') AS SqlText
+    FROM sys.fn_xe_file_target_read_file('C:\XE\Errors*.xel', NULL, NULL, NULL)
+    CROSS APPLY (SELECT CAST(event_data AS XML)) AS ed(event_data)
+),
+Blocking AS
+(
+    SELECT
+        'Blocking' AS [EventType],
+        event_data.value('(event/@timestamp)[1]', 'datetime2') AS EventTime,
+        event_data.value('(event/@name)[1]', 'varchar(100)') AS LockEvent,
+        event_data.value('(event/action[@name="sql_text"]/value)[1]', 'nvarchar(max)') AS SqlText,
+        event_data.value('(event/action[@name="session_id"]/value)[1]', 'int') AS SessionID,
+        event_data.value('(event/action[@name="database_name"]/value)[1]', 'nvarchar(128)') AS DatabaseName
+    FROM sys.fn_xe_file_target_read_file('C:\XE\Blocking*.xel', NULL, NULL, NULL)
+    CROSS APPLY (SELECT CAST(event_data AS XML)) AS ed(event_data)
+),
+LongRunning AS
+(
+    SELECT
+        'LongRunningQuery' AS [EventType],
+        event_data.value('(event/@timestamp)[1]', 'datetime2') AS EventTime,
+        event_data.value('(event/data[@name="duration"]/value)[1]', 'bigint')/1000 AS Duration_ms,
+        event_data.value('(event/action[@name="sql_text"]/value)[1]', 'nvarchar(max)') AS SqlText,
+        event_data.value('(event/action[@name="database_name"]/value)[1]', 'nvarchar(128)') AS DatabaseName,
+        event_data.value('(event/action[@name="session_id"]/value)[1]', 'int') AS SessionID
+    FROM sys.fn_xe_file_target_read_file('C:\XE\LongRunningQueries*.xel', NULL, NULL, NULL)
+    CROSS APPLY (SELECT CAST(event_data AS XML)) AS ed(event_data)
+)
+SELECT *
+FROM
+(
+    SELECT EventType, EventTime, 'Victim=' + ISNULL(VictimProcess,'') AS Details, NULL AS SqlText FROM Deadlocks
+    UNION ALL
+    SELECT EventType, EventTime, CONCAT('Error ', ErrorNumber, ' (Severity ', Severity, '): ', MessageText), SqlText FROM Errors
+    UNION ALL
+    SELECT EventType, EventTime, CONCAT('LockEvent=', LockEvent, ' | DB=', DatabaseName, ' | SPID=', SessionID), SqlText FROM Blocking
+    UNION ALL
+    SELECT EventType, EventTime, CONCAT('Duration=', Duration_ms, ' ms | DB=', DatabaseName, ' | SPID=', SessionID), SqlText FROM LongRunning
+) AS Dashboard
+ORDER BY EventTime DESC;
+
+🖥️ Output Example
+EventType	EventTime	Details	SqlText (if available)
+Deadlock	2025-09-02 14:10:05	Victim=process123	NULL
+Error	2025-09-02 14:05:42	Error 208 (Severity 16): Invalid object name 'tempTable'	SELECT * FROM tempTable
+Blocking	2025-09-02 14:03:21	LockEvent=lock_acquired	DB=Sales
+LongRunningQuery	2025-09-02 14:01:10	Duration=15234 ms	DB=Finance
+
+✅ Advantages:
+
+One-stop monitoring (instead of reading each .xel separately).
+
+Works with the script pack sessions we built earlier.
+
+Easy to filter by EventType.
