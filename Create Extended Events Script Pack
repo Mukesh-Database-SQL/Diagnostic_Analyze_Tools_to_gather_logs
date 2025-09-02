@@ -1,0 +1,132 @@
+I’ll prepare a ready-to-use Extended Events (XEvent) script pack that covers the most common DBA monitoring needs:
+
+Deadlocks
+
+Long-running queries
+
+Blocking sessions
+
+Error capture
+
+Each session can be enabled individually depending on what you need to troubleshoot.
+
+📦 Extended Events Script Pack
+/* ==========================================================
+   1. Capture Deadlocks
+   ========================================================== */
+IF EXISTS (SELECT * FROM sys.server_event_sessions WHERE name = 'XE_Deadlocks')
+    DROP EVENT SESSION XE_Deadlocks ON SERVER;
+GO
+
+CREATE EVENT SESSION XE_Deadlocks
+ON SERVER
+ADD EVENT sqlserver.deadlock_graph
+ADD TARGET package0.event_file
+(
+    SET filename = 'C:\XE\Deadlocks.xel',
+        max_file_size = 10,
+        max_rollover_files = 5
+);
+GO
+
+/* ==========================================================
+   2. Capture Long-Running Queries (> 5 sec)
+   ========================================================== */
+IF EXISTS (SELECT * FROM sys.server_event_sessions WHERE name = 'XE_LongRunningQueries')
+    DROP EVENT SESSION XE_LongRunningQueries ON SERVER;
+GO
+
+CREATE EVENT SESSION XE_LongRunningQueries
+ON SERVER
+ADD EVENT sqlserver.sql_statement_completed
+(
+    ACTION (sqlserver.sql_text, sqlserver.database_name, sqlserver.session_id)
+    WHERE (duration > 5000000) -- microseconds (5 seconds)
+)
+ADD TARGET package0.event_file
+(
+    SET filename = 'C:\XE\LongRunningQueries.xel',
+        max_file_size = 50,
+        max_rollover_files = 5
+);
+GO
+
+/* ==========================================================
+   3. Capture Blocking (Wait Info)
+   ========================================================== */
+IF EXISTS (SELECT * FROM sys.server_event_sessions WHERE name = 'XE_Blocking')
+    DROP EVENT SESSION XE_Blocking ON SERVER;
+GO
+
+CREATE EVENT SESSION XE_Blocking
+ON SERVER
+ADD EVENT sqlserver.lock_acquired
+(
+    ACTION (sqlserver.sql_text, sqlserver.session_id, sqlserver.database_name)
+)
+ADD EVENT sqlserver.lock_released
+(
+    ACTION (sqlserver.sql_text, sqlserver.session_id, sqlserver.database_name)
+)
+ADD EVENT sqlserver.lock_timeout
+ADD TARGET package0.event_file
+(
+    SET filename = 'C:\XE\Blocking.xel',
+        max_file_size = 50,
+        max_rollover_files = 5
+);
+GO
+
+/* ==========================================================
+   4. Capture Errors (Severity >= 16)
+   ========================================================== */
+IF EXISTS (SELECT * FROM sys.server_event_sessions WHERE name = 'XE_Errors')
+    DROP EVENT SESSION XE_Errors ON SERVER;
+GO
+
+CREATE EVENT SESSION XE_Errors
+ON SERVER
+ADD EVENT sqlserver.error_reported
+(
+    ACTION (sqlserver.sql_text, sqlserver.database_name, sqlserver.session_id)
+    WHERE (severity >= 16)
+)
+ADD TARGET package0.event_file
+(
+    SET filename = 'C:\XE\Errors.xel',
+        max_file_size = 20,
+        max_rollover_files = 5
+);
+GO
+
+/* ==========================================================
+   5. Start All Sessions (Optional)
+   ========================================================== */
+ALTER EVENT SESSION XE_Deadlocks ON SERVER STATE = START;
+ALTER EVENT SESSION XE_LongRunningQueries ON SERVER STATE = START;
+ALTER EVENT SESSION XE_Blocking ON SERVER STATE = START;
+ALTER EVENT SESSION XE_Errors ON SERVER STATE = START;
+GO
+
+📊 How to Read the Data
+-- Example: Read XE Deadlocks
+SELECT 
+    event_data.value('(event/@name)[1]', 'varchar(50)') AS event_name,
+    event_data.value('(event/action[@name="sql_text"]/value)[1]', 'nvarchar(max)') AS sql_text,
+    event_data.value('(event/data[@name="duration"]/value)[1]', 'bigint') AS duration
+FROM (
+    SELECT CAST(event_data AS XML) AS event_data
+    FROM sys.fn_xe_file_target_read_file('C:\XE\Deadlocks*.xel', NULL, NULL, NULL)
+) AS X;
+
+
+Or via SSMS GUI:
+👉 Management → Extended Events → Sessions → Right-click session → Watch Live Data.
+
+✅ Best Practice Notes
+
+Change the file path C:\XE\ to a dedicated monitoring/logging drive.
+
+Adjust thresholds (e.g., long-running query > 5 sec) per your environment.
+
+Keep sessions disabled until you need them in production to minimize overhead.
