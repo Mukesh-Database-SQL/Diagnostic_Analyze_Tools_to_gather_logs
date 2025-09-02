@@ -1,0 +1,132 @@
+if you want long-term trending in Power BI or SSRS, the best approach is to periodically shred XE .xel files into permanent tables using a SQL Agent Job.
+This avoids querying live .xel files (which can be expensive) and lets you keep history for weeks/months.
+
+📂 Step 1: Create Permanent Monitoring Tables
+USE [DBA_Tools]; -- or your monitoring database
+GO
+
+-- Deadlocks
+CREATE TABLE XE_Deadlocks_History
+(
+    EventTime       DATETIME2,
+    VictimProcess   VARCHAR(100),
+    EventDetails    XML
+);
+
+-- Errors
+CREATE TABLE XE_Errors_History
+(
+    EventTime   DATETIME2,
+    ErrorNumber INT,
+    Severity    INT,
+    MessageText NVARCHAR(MAX),
+    SqlText     NVARCHAR(MAX)
+);
+
+-- Blocking
+CREATE TABLE XE_Blocking_History
+(
+    EventTime    DATETIME2,
+    LockEvent    VARCHAR(100),
+    SessionID    INT,
+    DatabaseName NVARCHAR(128),
+    SqlText      NVARCHAR(MAX)
+);
+
+-- Long Running Queries
+CREATE TABLE XE_LongRunning_History
+(
+    EventTime    DATETIME2,
+    Duration_ms  BIGINT,
+    SessionID    INT,
+    DatabaseName NVARCHAR(128),
+    SqlText      NVARCHAR(MAX)
+);
+
+📂 Step 2: Create a Stored Procedure to Load XE Data
+CREATE OR ALTER PROCEDURE dbo.usp_LoadXEData
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Deadlocks
+    INSERT INTO XE_Deadlocks_History (EventTime, VictimProcess, EventDetails)
+    SELECT 
+        event_data.value('(event/@timestamp)[1]', 'datetime2'),
+        event_data.value('(event/data[@name="xml_report"]/value/deadlock/victim-list/victimProcess/@id)[1]', 'varchar(100)'),
+        event_data
+    FROM sys.fn_xe_file_target_read_file('C:\XE\Deadlocks*.xel', NULL, NULL, NULL)
+    CROSS APPLY (SELECT CAST(event_data AS XML)) AS X(event_data);
+
+    -- Errors
+    INSERT INTO XE_Errors_History (EventTime, ErrorNumber, Severity, MessageText, SqlText)
+    SELECT
+        event_data.value('(event/@timestamp)[1]', 'datetime2'),
+        event_data.value('(event/data[@name="error_number"]/value)[1]', 'int'),
+        event_data.value('(event/data[@name="severity"]/value)[1]', 'int'),
+        event_data.value('(event/data[@name="message"]/value)[1]', 'nvarchar(max)'),
+        event_data.value('(event/action[@name="sql_text"]/value)[1]', 'nvarchar(max)')
+    FROM sys.fn_xe_file_target_read_file('C:\XE\Errors*.xel', NULL, NULL, NULL)
+    CROSS APPLY (SELECT CAST(event_data AS XML)) AS X(event_data);
+
+    -- Blocking
+    INSERT INTO XE_Blocking_History (EventTime, LockEvent, SessionID, DatabaseName, SqlText)
+    SELECT
+        event_data.value('(event/@timestamp)[1]', 'datetime2'),
+        event_data.value('(event/@name)[1]', 'varchar(100)'),
+        event_data.value('(event/action[@name="session_id"]/value)[1]', 'int'),
+        event_data.value('(event/action[@name="database_name"]/value)[1]', 'nvarchar(128)'),
+        event_data.value('(event/action[@name="sql_text"]/value)[1]', 'nvarchar(max)')
+    FROM sys.fn_xe_file_target_read_file('C:\XE\Blocking*.xel', NULL, NULL, NULL)
+    CROSS APPLY (SELECT CAST(event_data AS XML)) AS X(event_data);
+
+    -- Long Running Queries
+    INSERT INTO XE_LongRunning_History (EventTime, Duration_ms, SessionID, DatabaseName, SqlText)
+    SELECT
+        event_data.value('(event/@timestamp)[1]', 'datetime2'),
+        event_data.value('(event/data[@name="duration"]/value)[1]', 'bigint')/1000,
+        event_data.value('(event/action[@name="session_id"]/value)[1]', 'int'),
+        event_data.value('(event/action[@name="database_name"]/value)[1]', 'nvarchar(128)'),
+        event_data.value('(event/action[@name="sql_text"]/value)[1]', 'nvarchar(max)')
+    FROM sys.fn_xe_file_target_read_file('C:\XE\LongRunningQueries*.xel', NULL, NULL, NULL)
+    CROSS APPLY (SELECT CAST(event_data AS XML)) AS X(event_data);
+
+END;
+GO
+
+📂 Step 3: Create SQL Agent Job
+
+Open SQL Server Agent → Jobs → New Job.
+
+Name: Load XE Monitoring Data.
+
+Step 1:
+
+Type: Transact-SQL
+
+Database: DBA_Tools
+
+Command:
+
+EXEC dbo.usp_LoadXEData;
+
+
+Schedule: Every 5 minutes (adjust based on your environment).
+
+📂 Step 4: Connect Power BI / SSRS to Tables
+
+Now instead of querying .xel files:
+
+In Power BI, connect to XE_Deadlocks_History, XE_Errors_History, etc.
+
+In SSRS, point your dataset to these tables.
+
+You now have historical data that can be trended over days, weeks, months.
+
+✅ Best Practices
+
+Archive / purge tables (e.g., keep 90 days of history).
+
+Move .xel files to an archive folder after processing (to avoid duplicate loads).
+
+For high-traffic systems, consider partitioning XE tables for fast purges.
