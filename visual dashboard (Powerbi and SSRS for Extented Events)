@@ -1,0 +1,133 @@
+visual dashboard makes monitoring much easier than just scanning tables.
+I’ll prepare scripts for Power BI and SSRS that consume the “Monitoring Dashboard” query we built.
+
+📊 Option 1 – Power BI Dashboard
+Step 1: Expose Dashboard Query as a View
+
+Instead of pasting the big CTE each time, wrap it in a view:
+
+CREATE OR ALTER VIEW dbo.XE_MonitoringDashboard
+AS
+WITH Deadlocks AS
+(
+    SELECT 
+        'Deadlock' AS EventType,
+        event_data.value('(event/@timestamp)[1]', 'datetime2') AS EventTime,
+        event_data.value('(event/data[@name="xml_report"]/value/deadlock/victim-list/victimProcess/@id)[1]', 'varchar(100)') AS VictimProcess,
+        CAST(event_data AS XML) AS EventDetails,
+        NULL AS SqlText
+    FROM sys.fn_xe_file_target_read_file('C:\XE\Deadlocks*.xel', NULL, NULL, NULL)
+    CROSS APPLY (SELECT CAST(event_data AS XML)) AS ed(event_data)
+)
+, Errors AS
+(
+    SELECT
+        'Error' AS EventType,
+        event_data.value('(event/@timestamp)[1]', 'datetime2') AS EventTime,
+        NULL AS VictimProcess,
+        CAST(event_data AS XML) AS EventDetails,
+        event_data.value('(event/action[@name="sql_text"]/value)[1]', 'nvarchar(max)') AS SqlText
+    FROM sys.fn_xe_file_target_read_file('C:\XE\Errors*.xel', NULL, NULL, NULL)
+    CROSS APPLY (SELECT CAST(event_data AS XML)) AS ed(event_data)
+)
+, Blocking AS
+(
+    SELECT
+        'Blocking' AS EventType,
+        event_data.value('(event/@timestamp)[1]', 'datetime2') AS EventTime,
+        NULL AS VictimProcess,
+        CAST(event_data AS XML) AS EventDetails,
+        event_data.value('(event/action[@name="sql_text"]/value)[1]', 'nvarchar(max)') AS SqlText
+    FROM sys.fn_xe_file_target_read_file('C:\XE\Blocking*.xel', NULL, NULL, NULL)
+    CROSS APPLY (SELECT CAST(event_data AS XML)) AS ed(event_data)
+)
+, LongRunning AS
+(
+    SELECT
+        'LongRunningQuery' AS EventType,
+        event_data.value('(event/@timestamp)[1]', 'datetime2') AS EventTime,
+        NULL AS VictimProcess,
+        CAST(event_data AS XML) AS EventDetails,
+        event_data.value('(event/action[@name="sql_text"]/value)[1]', 'nvarchar(max)') AS SqlText
+    FROM sys.fn_xe_file_target_read_file('C:\XE\LongRunningQueries*.xel', NULL, NULL, NULL)
+    CROSS APPLY (SELECT CAST(event_data AS XML)) AS ed(event_data)
+)
+SELECT EventType, EventTime, SqlText, EventDetails
+FROM Deadlocks
+UNION ALL
+SELECT EventType, EventTime, SqlText, EventDetails
+FROM Errors
+UNION ALL
+SELECT EventType, EventTime, SqlText, EventDetails
+FROM Blocking
+UNION ALL
+SELECT EventType, EventTime, SqlText, EventDetails
+FROM LongRunning;
+GO
+
+Step 2: Import View into Power BI
+
+Open Power BI Desktop
+
+Get Data → SQL Server
+
+Server = YourSQLServer
+
+Database = YourDB
+
+Table = dbo.XE_MonitoringDashboard
+
+Load data.
+
+Step 3: Build Visuals
+
+Timeline (line/area chart): EventTime on X-axis, count of EventType on Y-axis, color by EventType.
+
+Event Type Pie Chart: % of Deadlocks, Errors, Blocking, Long-running queries.
+
+Top SQL Text Table: List SqlText with counts & durations.
+
+Severity Filter: For error events (use slicers).
+
+📊 Option 2 – SSRS Dashboard
+Step 1: Create Dataset in SSRS
+
+Use this SQL as the dataset query:
+
+SELECT EventType, EventTime, SqlText
+FROM dbo.XE_MonitoringDashboard;
+
+Step 2: Create Visualizations
+
+Chart 1 (Timeline)
+
+Type: Line chart
+
+Category: EventTime (grouped by minute/hour)
+
+Series: EventType
+
+Value: Count(*)
+
+Chart 2 (Event Breakdown)
+
+Type: Pie chart
+
+Series: EventType
+
+Value: Count(*)
+
+Table
+
+Columns: EventType, EventTime, SqlText (with word wrap)
+
+🔑 Best Practices
+
+Refresh schedule: every 1–5 min (Power BI DirectQuery or SSRS auto-refresh).
+
+Archive .xel files regularly to avoid them growing too large.
+
+Consider storing XE data in a permanent table via a SQL Agent job if you want long-term trending (instead of querying .xel files live).
+
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
