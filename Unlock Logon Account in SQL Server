@@ -1,0 +1,40 @@
+Method 2: Using PowerShell
+
+Run the following command (with Domain Admin or delegated rights):
+
+# Import Active Directory module
+Import-Module ActiveDirectory
+
+# Unlock the account
+Unlock-ADAccount -Identity "svc-cou-act24-prd"
+
+# Verify account is unlocked
+Get-ADUser -Identity "svc-cou-act24-prd" -Properties LockedOut | Select-Object SamAccountName, LockedOut
+
+
+If LockedOut = False, the account is successfully unlocked.
+
+Method 3: Using Command Line
+Net user svc-cou-act24-prd /domain
+
+
+This shows whether the account is locked.
+To unlock:
+
+Net user svc-cou-act24-prd /domain /active:yes
+
+🔹 Important Notes for Service Accounts
+
+If this service account is used to run SQL Server services or On-premises Gateway, after unlocking:
+
+Restart the service(s) from services.msc.
+
+Ensure password is updated everywhere (if it was recently changed).
+
+Frequent lockouts usually indicate:
+
+Password mismatch (service still configured with old password).
+
+Cached credentials (old password saved in Scheduled Task, IIS App Pool, or another server).
+
+Account being used interactively somewhere else.
