@@ -1,0 +1,115 @@
+🧠 1. Check SQL Server Memory Usage (High-Level Overview)
+🔍 Query:
+-- SQL Server Memory Usage Summary
+SELECT 
+    physical_memory_kb / 1024 AS [Physical Memory (MB)],
+    virtual_address_space_committed_kb / 1024 AS [Committed VAS (MB)],
+    committed_kb / 1024 AS [Committed Memory (MB)],
+    committed_target_kb / 1024 AS [Target Memory (MB)],
+    (committed_kb - committed_target_kb) / 1024 AS [Difference (MB)],
+    system_memory_state_desc AS [System Memory State]
+FROM sys.dm_os_sys_memory;
+
+-- SQL Server Memory Manager Overview
+SELECT 
+    [type],
+    pages_kb / 1024 AS [Memory (MB)]
+FROM sys.dm_os_memory_clerks
+ORDER BY pages_kb DESC;
+
+
+✅ What this shows:
+
+Total physical and committed memory
+
+Memory allocated by different clerks (e.g., MEMORYCLERK_SQLBUFFERPOOL, MEMORYCLERK_SQLQUERYEXECUTOR)
+
+Whether SQL Server is under memory pressure
+
+🧵 2. Check Thread Usage and Activity
+🔍 Query:
+-- Threads and workers per scheduler
+SELECT 
+    scheduler_id,
+    current_tasks_count AS [Active Tasks],
+    runnable_tasks_count AS [Runnable Tasks],
+    current_workers_count AS [Workers],
+    active_workers_count AS [Active Workers],
+    work_queue_count AS [Work Queue],
+    is_online,
+    is_idle
+FROM sys.dm_os_schedulers
+WHERE status = 'VISIBLE ONLINE';
+
+
+✅ What this shows:
+
+How many threads (workers) are active per scheduler
+
+Whether schedulers are overworked (runnable tasks > 0 means CPU pressure)
+
+🧩 3. Check Top Memory Consumers by Clerk
+-- Identify which components use the most memory
+SELECT 
+    TOP 10
+    type,
+    SUM(pages_kb)/1024 AS [Memory_MB]
+FROM sys.dm_os_memory_clerks
+GROUP BY type
+ORDER BY SUM(pages_kb) DESC;
+
+
+✅ Useful for: finding what part of SQL Server (buffer pool, query execution, plan cache, etc.) is consuming the most memory.
+
+🧰 4. Check Memory Grants (Active Queries Waiting on Memory)
+-- Check active queries waiting for memory grants
+SELECT 
+    session_id,
+    request_id,
+    granted_memory_kb / 1024 AS [Granted Memory (MB)],
+    requested_memory_kb / 1024 AS [Requested Memory (MB)],
+    ideal_memory_kb / 1024 AS [Ideal Memory (MB)],
+    is_next_fetch_resumable,
+    wait_time_ms
+FROM sys.dm_exec_query_memory_grants
+ORDER BY wait_time_ms DESC;
+
+
+✅ Indicates:
+If many queries are waiting for memory grants, it might indicate memory pressure or poor query design.
+
+⚙️ 5. Check System Threads (Detailed View)
+-- Detailed thread info
+SELECT 
+    os_thread_id,
+    scheduler_id,
+    started_by_sqlservr,
+    stack_bytes_used,
+    creation_time
+FROM sys.dm_os_threads
+ORDER BY creation_time DESC;
+
+
+✅ Use case:
+To see how many threads SQL Server has created, and whether any thread growth or leaks are occurring.
+
+🧩 6. Check Max and Min Server Memory Configuration
+-- Memory configuration settings
+EXEC sp_configure 'show advanced options', 1;
+RECONFIGURE;
+
+EXEC sp_configure 'max server memory (MB)';
+EXEC sp_configure 'min server memory (MB)';
+
+
+✅ Tip:
+Ensure max server memory is configured properly (leave 10–20% of total RAM for OS and other processes).
+
+🧭 Quick Diagnostic Summary (Combine in One View)
+-- Memory and Thread Diagnostic Summary
+SELECT 
+    (SELECT COUNT(*) FROM sys.dm_os_threads) AS [Total Threads],
+    (SELECT COUNT(*) FROM sys.dm_os_workers) AS [Total Workers],
+    (SELECT SUM(pages_kb)/1024 FROM sys.dm_os_memory_clerks) AS [SQL Memory MB],
+    (SELECT committed_kb/1024 FROM sys.dm_os_sys_info) AS [Committed Memory MB],
+    (SELECT physical_memory_kb/1024 FROM sys.dm_os_sys_memory) AS [System Memory MB];
