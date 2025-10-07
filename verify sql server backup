@@ -1,0 +1,112 @@
+Verifying SQL Server backups is a critical step in ensuring that your database recovery strategy is reliable. A backup file (.bak, .trn, etc.) might exist, but unless you verify its integrity and test restore, you can’t be confident it will work during a disaster.
+
+Here’s a detailed, professional guide on how to verify SQL Server backups:
+
+🔹 1. Use RESTORE VERIFYONLY
+
+This checks the backup file’s structural integrity without actually restoring it.
+
+-- Verify a FULL backup
+RESTORE VERIFYONLY 
+FROM DISK = 'D:\SQLBackups\MyDatabase_FULL_20251002.bak';
+
+-- Verify a DIFFERENTIAL backup
+RESTORE VERIFYONLY 
+FROM DISK = 'D:\SQLBackups\MyDatabase_DIFF_20251002.bak';
+
+-- Verify a LOG backup
+RESTORE VERIFYONLY 
+FROM DISK = 'D:\SQLBackups\MyDatabase_LOG_20251002.trn';
+
+
+✅ Confirms the backup is readable and not corrupted.
+⚠️ It does not guarantee that the database can be restored successfully (e.g., missing dependent log backups).
+
+🔹 2. Use RESTORE HEADERONLY
+
+Check metadata about the backup file.
+
+RESTORE HEADERONLY 
+FROM DISK = 'D:\SQLBackups\MyDatabase_FULL_20251002.bak';
+
+
+This shows:
+
+Backup type (Full, Differential, Log)
+
+Backup start/finish date
+
+Server name, DB name, recovery model
+
+Backup set expiration date
+
+LSN (Log Sequence Number) values for chain validation
+
+🔹 3. Use RESTORE FILELISTONLY
+
+Check which data and log files are included in the backup.
+
+RESTORE FILELISTONLY 
+FROM DISK = 'D:\SQLBackups\MyDatabase_FULL_20251002.bak';
+
+
+Useful for planning WITH MOVE during restores.
+
+🔹 4. Run a Test Restore (Best Practice ✅)
+
+The only true way to verify a backup is to restore it to a test or staging environment:
+
+RESTORE DATABASE MyDatabase_Test
+FROM DISK = 'D:\SQLBackups\MyDatabase_FULL_20251002.bak'
+WITH 
+    MOVE 'MyDatabase_Data' TO 'E:\SQLData\MyDatabase_Test.mdf',
+    MOVE 'MyDatabase_Log'  TO 'E:\SQLLogs\MyDatabase_Test.ldf',
+    NORECOVERY, REPLACE;
+
+
+Ensures database consistency.
+
+Allows DBCC CHECKDB execution on restored copy:
+
+DBCC CHECKDB('MyDatabase_Test') WITH NO_INFOMSGS, ALL_ERRORMSGS;
+
+🔹 5. Automate Backup Verification
+
+You can schedule a SQL Agent Job or PowerShell script to:
+
+Run RESTORE VERIFYONLY on new backups.
+
+Log results to a table.
+
+Optionally test restore to a Dev/QA server.
+
+Example (T-SQL for SQL Agent Job):
+
+DECLARE @BackupFile NVARCHAR(500) = 'D:\SQLBackups\MyDatabase_FULL_20251002.bak';
+
+BEGIN TRY
+    RESTORE VERIFYONLY FROM DISK = @BackupFile;
+    PRINT 'Backup verified successfully: ' + @BackupFile;
+END TRY
+BEGIN CATCH
+    PRINT 'Backup verification failed: ' + @BackupFile;
+    PRINT ERROR_MESSAGE();
+END CATCH
+
+🔹 6. Third-Party & Advanced Options
+
+SQL Server Management Studio (SSMS) → Right-click database → Tasks → Restore → Verify.
+
+Ola Hallengren’s Maintenance Solution → has built-in integrity checks for backups.
+
+PowerShell Test-SqlBackup (via dbatools module).
+
+✅ Summary:
+
+Use RESTORE VERIFYONLY for quick verification.
+
+Use RESTORE HEADERONLY & FILELISTONLY to validate metadata and file structure.
+
+The best verification is a test restore + DBCC CHECKDB.
+
+Automate verification to avoid surprises during a disaster recovery scenario.
