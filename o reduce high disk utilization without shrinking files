@@ -1,0 +1,231 @@
+step-by-step approach to reduce high disk utilization without shrinking files:
+
+🔍 Step 1: Identify the Source of High Disk Usage
+
+Check file sizes & growth patterns
+
+SELECT 
+    DB_NAME(database_id) AS DatabaseName,
+    name AS FileName,
+    size*8/1024 AS SizeMB,
+    physical_name AS FilePath
+FROM sys.master_files;
+
+
+Identify whether it’s data files, log files, or tempdb causing the problem.
+
+Check free vs. used space inside database files
+
+DBCC SQLPERF(LOGSPACE); -- For log usage
+EXEC sp_spaceused; -- For database space usage
+
+
+Check what’s consuming space
+Find largest tables/indexes:
+
+SELECT 
+    t.NAME AS TableName,
+    i.name AS IndexName,
+    SUM(p.rows) AS RowCounts,
+    SUM(a.total_pages) * 8 / 1024 AS TotalMB
+FROM sys.tables t
+INNER JOIN sys.indexes i ON t.OBJECT_ID = i.object_id
+INNER JOIN sys.partitions p ON i.object_id = p.OBJECT_ID AND i.index_id = p.index_id
+INNER JOIN sys.allocation_units a ON p.partition_id = a.container_id
+GROUP BY t.Name, i.object_id, i.index_id, i.name
+ORDER BY TotalMB DESC;
+
+⚡ Step 2: Solutions (Without Shrinking)
+1. Index Maintenance & Cleanup
+
+Rebuild/reorganize indexes → reduces wasted space from fragmentation.
+
+Drop unused indexes:
+
+SELECT OBJECT_NAME(s.object_id) AS TableName, i.name AS IndexName, s.user_seeks, s.user_scans, s.user_lookups, s.user_updates
+FROM sys.dm_db_index_usage_stats s
+JOIN sys.indexes i ON s.object_id = i.object_id AND s.index_id = i.index_id
+WHERE OBJECTPROPERTY(s.object_id,'IsUserTable') = 1;
+
+
+→ If user_updates is high but user_seeks/scans/lookups = 0 → index is unused.
+
+2. Data Archiving & Partitioning
+
+Move historical data to:
+
+Archive tables
+
+Filegroups
+
+Cheaper storage (separate database / data warehouse).
+
+Implement table partitioning to keep active data on fast disks, historical on cheaper disks.
+
+3. Transaction Log Management
+
+Ensure regular log backups (for FULL/BULK_LOGGED recovery mode).
+
+BACKUP LOG [YourDB] TO DISK = 'NUL'; -- (just for clearing test, use real backup path)
+
+
+If log backups are not running, .ldf files will grow continuously.
+
+4. TempDB Optimization
+
+Multiple data files (1 per CPU core up to 8 recommended).
+
+Place tempdb on fast storage (SSD/NVMe).
+
+Pre-size tempdb adequately to avoid autogrowth overhead.
+
+5. Compression
+
+Enable row/page compression for large tables & indexes (saves both disk & IO).
+
+ALTER INDEX [IndexName] ON [TableName] REBUILD WITH (DATA_COMPRESSION = PAGE);
+
+6. Data Cleanup
+
+Delete/archive old logs, staging data, audit records.
+
+Use partition switching for fast purge of old data.
+
+7. File & Storage Strategies
+
+Spread files across multiple disks (data files, log files, tempdb).
+
+Use filegroups for large databases.
+
+Monitor with:
+
+SELECT * FROM sys.dm_io_virtual_file_stats(NULL, NULL);
+
+🛠 Best Practices (Going Forward)
+
+✅ Pre-size database & log files instead of relying on autogrowth.
+
+✅ Schedule index maintenance + stats updates.
+
+✅ Implement data lifecycle (archive, purge policies).
+
+✅ Regularly monitor growth trends & adjust capacity.
+
+✅ Use compression & partitioning for large tables.
+
+⚡ Summary:
+To reduce high disk utilization without shrinking:
+
+Clean unused indexes, compress large objects, archive/purge old data, manage logs, and optimize tempdb.
+
+Shrinking is a last resort (not recommended). Instead, focus on sustainable space management.
+
+👉 Do you want me to create a ready-to-run SQL script pack (index cleanup, compression, space usage reports, log backup validation) that you can run directly in your SQL Server? This would give you a hands-on toolkit for solving your issue.
+
+You said:
+The query condition crossed the threshold of 5 and reached 21, for the following dimensions combination:
+
+Computer
+
+servername.ad.bcc.qld.gov.au
+
+whats does mean by this given error and how to found the route cause issue of the error
+MetaDBA (QueryMaster GPT) said:
+
+Got it 👍. Let’s break this down step by step.
+
+🔎 What does “query condition crossed the threshold of 5 and reached 21” mean?
+
+This is not a standard SQL Server error message – it usually comes from:
+
+A monitoring tool (like SCOM, SolarWinds, Zabbix, AppDynamics, or a custom monitoring script).
+
+A user-defined alert/trigger in your environment.
+
+What it’s telling you:
+
+A performance threshold was set (in this case, 5).
+
+Your system measured a value of 21 for that metric.
+
+The object/dimension it applied to is the Computer (servername.ad.bcc.qld.gov.au).
+
+So: some monitored metric exceeded the configured threshold.
+
+⚠️ Possible Metrics This Could Be
+
+Since it’s at the Computer dimension (not specifically a database object), the metric could be:
+
+CPU usage (% processor time).
+
+Disk latency / IO queue length.
+
+Page Life Expectancy (PLE).
+
+Memory pressure (Page faults/sec).
+
+Number of blocked processes or connections.
+
+Query response time / duration.
+
+🛠️ How to Find the Root Cause
+
+Check your monitoring tool
+
+See what metric was defined with a threshold of 5.
+
+Example: In SCOM, you’d go to the rule/monitor definition and check the alert context.
+
+Correlate with SQL Server performance metrics at the time of the alert:
+
+-- High CPU queries (if it was CPU threshold)
+SELECT TOP 10
+    total_worker_time/qs.execution_count AS AvgCPU,
+    execution_count,
+    total_worker_time,
+    total_logical_reads,
+    total_logical_writes,
+    SUBSTRING(qt.text, (qs.statement_start_offset/2)+1,
+    ((CASE qs.statement_end_offset
+      WHEN -1 THEN DATALENGTH(qt.text)
+      ELSE qs.statement_end_offset END
+     - qs.statement_start_offset)/2)+1) AS QueryText
+FROM sys.dm_exec_query_stats qs
+CROSS APPLY sys.dm_exec_sql_text(qs.sql_handle) qt
+ORDER BY AvgCPU DESC;
+
+-- Wait statistics (if it was IO or waits threshold)
+SELECT wait_type, wait_time_ms/1000.0 AS WaitSec, waiting_tasks_count
+FROM sys.dm_os_wait_stats
+WHERE wait_type NOT LIKE '%SLEEP%'
+ORDER BY wait_time_ms DESC;
+
+-- Check disk latency
+SELECT DB_NAME(vfs.database_id) AS DBName, mf.physical_name, 
+       vfs.num_of_reads, vfs.io_stall_read_ms, 
+       vfs.num_of_writes, vfs.io_stall_write_ms
+FROM sys.dm_io_virtual_file_stats(NULL, NULL) vfs
+JOIN sys.master_files mf ON vfs.database_id = mf.database_id AND vfs.file_id = mf.file_id;
+
+
+Check Windows counters
+
+Open Performance Monitor (perfmon) on the server.
+
+Add counters:
+
+Processor(_Total)\% Processor Time
+
+LogicalDisk(_Total)\Avg. Disk sec/Read
+
+Memory\Pages/sec
+
+SQLServer:SQL Statistics\Batch Requests/sec
+
+✅ Next Steps
+
+Identify which metric triggered the alert (from your monitoring tool).
+
+Map it back to SQL Server performance metrics (CPU, IO, memory, queries).
+
+Investigate long-running queries, blocking, or resource bottlenecks.
